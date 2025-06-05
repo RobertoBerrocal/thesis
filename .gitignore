@@ -1,0 +1,25 @@
+# Datasets
+/dataset/
+/csv_export/
+/*.csv
+*.parquet
+*.xlsx
+
+# Jupyter notebook checkpoints
+.ipynb_checkpoints/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.so
+
+# Logs and system files
+*.log
+*.tmp
+*.DS_Store
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
