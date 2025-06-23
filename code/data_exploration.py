@@ -1,6 +1,14 @@
+# =============================
+# 1. IMPORTING LIBRARIES
+# =============================
+
 import pandas as pd
 import numpy as np
 import duckdb
+
+# ===================================================
+# 2. DATA EXPLORATION, CLEANING AND PREPARATION
+# ===================================================
 
 # dimension table
 product_master = pd.read_parquet('dataset/parquet/PRODUCT_MASTER.parquet')
@@ -9,48 +17,40 @@ user_master = pd.read_parquet('dataset/parquet/USER_MASTER.parquet')
 # fact tables
 operation_details = pd.read_parquet('dataset/parquet/FACT_OPERATION_TABLE.parquet')
 order_details = pd.read_parquet('dataset/parquet/FACT_ORDER_TABLE.parquet')
-# RFM table
-rfm_table = pd.read_parquet('csv_export/RFM.parquet')
 
-# print shape of each dataframe
 print("Product Master Shape:", product_master.shape)
 print("Store Master Shape:", store_master.shape)
 print("User Master Shape:", user_master.shape)
 print("Operation Details Shape:", operation_details.shape)
 print("Order Details Shape:", order_details.shape)
 
+print("User Master Info:")
 user_master.info()
 
-# covert REGISTRATION_TIMESTAMP to datetime AND CREATION_DATE to datetime
 user_master['REGISTRATION_TIMESTAMP'] = pd.to_datetime(user_master['REGISTRATION_TIMESTAMP'])
 user_master['CREATION_DATE'] = pd.to_datetime(user_master['CREATION_DATE'])
 
+print("Order Details Info:")
 order_details.info()
 
-# convert columns to datetime amd time
 order_details['ORDER_TIMESTAMP'] = pd.to_datetime(order_details['ORDER_TIMESTAMP'], errors='coerce')
 order_details['ORDER_DATE'] = pd.to_datetime(order_details['ORDER_DATE'], errors='coerce')
 order_details['ORDER_TIME'] = pd.to_datetime(order_details['ORDER_TIME'], format='%H:%M:%S', errors='coerce').dt.time
 
-order_details.shape
+print("Uniques STORE_ID in order details table:" ,order_details.STORE_ID.unique().shape[0])
+print("Uniques STORE_ID in store master table:", store_master.STORE_ID.unique().shape[0])
 
-order_details.STORE_ID.unique().shape[0]
-
-store_master.STORE_ID.unique().shape[0]
-
-# map the STORE_NAME to STORE_ID in order_details
 order_details = order_details.merge(
     store_master[['STORE_ID', 'STORE_NAME','PREFIX']],
     on='STORE_ID',
     how='left'
 )
+print("Unique STORE_NAME in order details after merge:", order_details.STORE_NAME.unique().shape[0])
 
-order_details.STORE_NAME.unique().shape[0]
+print("Number of rows with null STORE_NAME:", order_details[order_details['STORE_NAME'].isna()].shape[0])
 
-# drop the rows with null STORE_NAME
 order_details = order_details.dropna(subset=['STORE_NAME'])
-# check the unique STORE_NAME again
-order_details.STORE_NAME.unique().shape[0]
+print("Unique STORE_NAME in order details after dropping nulls:", order_details.STORE_NAME.unique().shape[0])
 
 order_details = order_details.merge(
     product_master[[
@@ -79,9 +79,8 @@ order_details = order_details.merge(
     how='left'
 )
 
-order_details.PAYMENT_METHOD.value_counts()
+print("Payment method - Value Counts:",order_details.PAYMENT_METHOD.value_counts())
 
-# Dictionary to map cleaned PAYMENT_METHOD values
 payment_mapping = {
     "CREDIT_CARD_ONLINE": "ONLINE_PAYMENTS",
     "SAFE_PAYMENT_ONLINE": "ONLINE_PAYMENTS",
@@ -94,36 +93,21 @@ payment_mapping = {
     "QR CODE": "E WALLET"
 }
 
-# Map the values
 order_details['PAYMENT_METHOD'] = order_details['PAYMENT_METHOD'].map(payment_mapping)
 
+print("Payment method - Value Counts after mapping:", order_details.PAYMENT_METHOD.value_counts())
+print("Order State Final - Value Counts:", order_details.ORDER_STATE_FINAL.value_counts())
 
-order_details.PAYMENT_METHOD.value_counts()
-
-order_details.ORDER_STATE_FINAL.unique()
-
-order_details.ORDER_STATE_FINAL.value_counts()
-
-# drop the rows with Invalid and Fraud ORDER_STATE_FINAL
 order_details = order_details[
     ~order_details['ORDER_STATE_FINAL'].isin(['Fraud'])
 ]
-# check the unique ORDER_STATE_FINAL again
-order_details.ORDER_STATE_FINAL.unique()
 
-order_details.SKU_NAME.isna().sum()    
+print("Check Total SKU_NAME null values:", order_details.SKU_NAME.isna().sum())
 
-# get all the SKU_IDs with null SKU_NAME
 null_sku_ids = order_details[order_details['SKU_NAME'].isna()]['SKU_ID'].unique()
-# null_sku_ids
 
-# get all the SKU_IDs with null SKU_NAME
-null_sku_ids = order_details[order_details['SKU_NAME'].isna()]['SKU_ID'].unique()
-# null_sku_ids
-
-order_details.shape
-
-operation_details.shape
+order_details = order_details.dropna(subset=['SKU_NAME'])
+print("Check Total SKU_NAME null values after dropping nulls:", order_details.SKU_NAME.isna().sum())
 
 operation_details['ORDER_DATE'] = pd.to_datetime(operation_details['ORDER_DATE'])
 operation_details['ORDER_TIME'] = pd.to_datetime(operation_details['ORDER_TIME'], format='%H:%M:%S', errors='coerce')
@@ -134,8 +118,8 @@ operation_details = operation_details.merge(
     how='left'
 )
 
-# query to get the sample order for a specific customer
-sample_order = duckdb.query("""
+# Important query to calculate the discount breakdown columns
+discount_breakdown_query = duckdb.query("""
 SELECT 
     ORDER_ID
     , ORDER_TIMESTAMP
@@ -156,7 +140,9 @@ WHERE true
 AND CUSTOMER_ID = '5e9fbcf540e7164b5f8a649a719defcfc53c31ae992418c33793bc2058bd5583'
 ORDER BY ORDER_TIMESTAMP DESC
 """).to_df()
-# sample_order
+
+print("Discount Breakdown Query:")
+print(discount_breakdown_query.head())
 
 # Compute discount columns
 order_details['UNIT_ORGANIC_DISCOUNT'] = order_details['UNIT_LIST_PRICE'] - order_details['UNIT_OFFERED_PRICE']
@@ -166,22 +152,23 @@ order_details['UNIT_TOTAL_EXTRA_DISCOUNT'] = order_details['UNIT_EXTRA_DISCOUNT'
 order_details['UNIT_TOTAL_DISCOUNTS'] = order_details['UNIT_TOTAL_ORGANIC_DISCOUNT'] + order_details['UNIT_TOTAL_EXTRA_DISCOUNT']
 
 
-order_details.shape
-
+print("Operation Details Final Shape:", operation_details.shape)
 print("Final Order Details Shape:", order_details.shape)
 print("Valid Orders:", order_details[order_details['ORDER_STATE_FINAL']=='Valid'].shape[0])
 print("Invalid Orders:", order_details[order_details['ORDER_STATE_FINAL']=='Invalid'].shape[0])
 
 valid_orders = order_details[order_details['ORDER_STATE_FINAL']=='Valid']
 
-valid_orders.CUSTOMER_ID.unique().shape[0]
+print("Unique custmers with valid orders:", valid_orders.CUSTOMER_ID.unique().shape[0])
 
-## RFM & Enhanced Metrics Calculation
+# ===========================================
+# 3. EXTENDED RFM METRICS CALCULATION
+# ===========================================
 
-# Aggregate per CUSTOMER_ID only for VALID orders
+print("Calculating RFM extended metrics...")
 reference_date = order_details['ORDER_DATE'].max()
 
-# RFM & Enhanced Metrics
+# RFM & Discount Metrics
 rfm_df = valid_orders.groupby(['CUSTOMER_ID']).agg(
     Recency=('ORDER_DATE', lambda x: (reference_date - x.max()).days),
     Frequency=('ORDER_ID', 'nunique'),
@@ -192,7 +179,6 @@ rfm_df = valid_orders.groupby(['CUSTOMER_ID']).agg(
     Total_Discounts=('UNIT_TOTAL_DISCOUNTS', 'sum')
 ).reset_index()
 
-# rfm_df['Churn_Label'] = (rfm_df['Recency'] > 60).astype(int) 
 
 # Step 1: Aggregate per ORDER_ID and CUSTOMER_ID to get per-order metrics first
 order_level = valid_orders.groupby(['CUSTOMER_ID', 'ORDER_ID']).agg(
@@ -232,27 +218,25 @@ behavioral_df = order_level.groupby('CUSTOMER_ID').agg(
     FAVOURITE_PAYMENT_METHOD=('PAYMENT_METHOD', lambda x: x.mode().iloc[0] if not x.mode().empty else 'Unknown')
 ).reset_index()
 
-# Step 3: Add category diversity and favorite category at SKU level
+# Diversity and favorite "Categorical Features"
 category_features = valid_orders.groupby('CUSTOMER_ID').agg(
     CATEGORY_DIVERSITY=('SKU_CATEGORY', pd.Series.nunique),
     FAVORITE_CATEGORY=('SKU_CATEGORY', lambda x: x.mode().iloc[0] if not x.mode().empty else 'Unknown'),
     SUB_CATEGORY_DIVERSITY=('SKU_SUBCATEGORY', pd.Series.nunique),
     FAVORITE_SUB_CATEGORY=('SKU_SUBCATEGORY', lambda x: x.mode().iloc[0] if not x.mode().empty else 'Unknown'),
-    # FAVORITE_CONTAINTER
 ).reset_index()
 
 behavioral_df = behavioral_df.merge(category_features, on='CUSTOMER_ID', how='left')
 
 rfm_df = pd.merge(rfm_df, behavioral_df, on='CUSTOMER_ID', how='left')
 
-## Operational Metrics
+# Operational Metrics
 
 operation_details['WEEKDAY'] = operation_details['ORDER_DATE'].dt.day_name()
 operation_details['HOUR'] = operation_details['ORDER_TIME'].dt.hour
 
 valid_orders_operations = operation_details[operation_details['ORDER_STATE_FINAL']=='Valid']
 
-# Calculate operational features per CUSTOMER_ID
 operational_features = valid_orders_operations.groupby('CUSTOMER_ID').agg(
     AVG_DELIVERY_TIME=('DELIVERY_TIME', 'mean'),
     SLA_VIOLATION_RATE=('WITHIN_SLA', lambda x: (x == 0).sum() / len(x)),
@@ -262,9 +246,14 @@ operational_features = valid_orders_operations.groupby('CUSTOMER_ID').agg(
     FAVORITE_HOUR=('HOUR', lambda x: x.mode()[0] if not x.mode().empty else -1)
 ).reset_index()
 
-extended_rfm_df = rfm_df.merge(operational_features, on='CUSTOMER_ID', how='left')
+final_rfm = rfm_df.merge(operational_features, on='CUSTOMER_ID', how='left')
 
-extended_rfm_df.to_parquet("csv_export/RFM.parquet", index=False)
+# ===================================================
+# 4. EXPORTING EXTENDED RFM DATAFRAME
+# ===================================================
 
-print(extended_rfm_df.head())
+print("Exporting RFM DataFrame to Parquet format...")
+final_rfm.to_parquet("csv_export/RFM2.parquet", index=False)
+
+print(final_rfm.head())
 
