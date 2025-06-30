@@ -274,7 +274,6 @@ df = pd.DataFrame(data)
 
 fig, axes = plt.subplots(2, 1, figsize=(14, 18))
 metrics = ['Qini_AUC', 'AUUC']
-benchmark_lines = [0.4,0.4]  
 
 for i, metric in enumerate(metrics):
     sns.barplot(data=df, x='Model', y=metric, hue='Churn_Label', ax=axes[i], palette='Set2')
