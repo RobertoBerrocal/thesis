@@ -3,7 +3,6 @@
 # =============================
 
 import pandas as pd
-import numpy as np
 from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.pipeline import Pipeline
@@ -13,7 +12,7 @@ from sklearn.svm import OneClassSVM
 import matplotlib.pyplot as plt
 from sklift.models import ClassTransformation,TwoModels
 from xgboost import XGBClassifier
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import SVC
 from sklearn.linear_model import LogisticRegression
 from sklift.metrics import uplift_at_k, qini_auc_score,uplift_auc_score
@@ -282,7 +281,6 @@ for i, metric in enumerate(metrics):
     axes[i].set_title(f'Figure {i+1}: {metric} across Models and Churn Labels', fontsize=15)
     axes[i].set_ylabel(metric)
     axes[i].tick_params(axis='x', rotation=15)
-    axes[i].axhline(benchmark_lines[i], color='red', linestyle='--', label='Benchmark Threshold')
     axes[i].legend()
 
 plt.tight_layout()
